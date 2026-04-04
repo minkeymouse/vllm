@@ -4,9 +4,9 @@ requires = [
     "cmake>=3.26.1",
     "ninja",
     "packaging>=24.2",
-    "setuptools>=77.0.3,<81.0.0",
+    "setuptools>=77.0.3,<82.0.0",
     "setuptools-scm>=8.0",
-    "torch == 2.10.0",
+    "torch == 2.11.0",
     "wheel",
     "jinja2",
 ]
@@ -46,7 +46,7 @@ lora_filesystem_resolver = "vllm.plugins.lora_resolvers.filesystem_resolver:regi
 lora_hf_hub_resolver = "vllm.plugins.lora_resolvers.hf_hub_resolver:register_hf_hub_resolver"
 
 [tool.setuptools_scm]
-# no extra settings needed, presence enables setuptools-scm
+# Nested checkout: use `VLLM_VERSION_OVERRIDE=…` (see setup.py get_vllm_version) if scm lookup fails.
 
 [tool.setuptools.packages.find]
 where = ["."]

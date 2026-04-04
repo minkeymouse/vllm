@@ -1,0 +1,5 @@
+# Pin only deps that vLLM would otherwise downgrade unnecessarily.
+# Do not pin protobuf>=7 here: vLLM's OpenTelemetry stack still requires protobuf<7 on PyPI (2026-04).
+# Installing editable vLLM into this repo will likely move protobuf to 6.x unless OTel is bumped upstream.
+numpy==2.4.3
+setuptools==81.0.0

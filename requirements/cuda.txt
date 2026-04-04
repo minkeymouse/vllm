@@ -1,13 +1,15 @@
 # Common dependencies
 -r common.txt
 
-numba == 0.61.2 # Required for N-gram speculative decoding
+# 0.61.x caps numpy<2.3; kagglenemotron uses numpy 2.4.x — bump with smoke tests if speculative decode regresses.
+numba == 0.65.0
 
 # Dependencies for NVIDIA GPUs
-torch==2.10.0
-torchaudio==2.10.0
+# Kept in sync with kagglenemotron torch 2.11.0+cu128 (see root pyproject / uv.lock).
+torch==2.11.0
+torchaudio==2.11.0
 # These must be updated alongside torch
-torchvision==0.25.0 # Required for phi3v processor. See https://github.com/pytorch/vision?tab=readme-ov-file#installation for corresponding version
+torchvision==0.26.0 # PyTorch 2.11 companion; see https://github.com/pytorch/vision#installation
 # FlashInfer should be updated together with the Dockerfile
 flashinfer-python==0.6.7
 flashinfer-cubin==0.6.7
