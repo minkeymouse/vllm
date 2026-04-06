@@ -918,7 +918,15 @@ class FusedMoE(CustomOp):
     ):
         # Index the loaded weight for tp sharding.
         # gate_up_proj: "MergedColumnParallel", so tp sharding on output_dim
-        if self.moe_config.is_act_and_mul:
+        #
+        # BitsAndBytes packs each expert's w13 as a flat (packed_elems, 1) tensor
+        # sized for gate||up even when is_act_and_mul=False (e.g. Nemotron-H maps
+        # HF up_proj into w1 only). Unquantized non-gated MoE uses a smaller w13
+        # (single intermediate dim); keep full shard_size there.
+        is_bitsandbytes_flat_packed_w13 = (
+            expert_data.ndim == 2 and expert_data.shape[-1] == 1
+        )
+        if self.moe_config.is_act_and_mul or is_bitsandbytes_flat_packed_w13:
             shard_size = expert_data.shape[shard_dim] // 2
         else:
             shard_size = expert_data.shape[shard_dim]
@@ -1571,22 +1579,30 @@ class FusedMoE(CustomOp):
             else ""
         )
 
+        # Non-gated MoE (e.g. Nemotron-H) uses ckpt_gate for the only up-like
+        # projection; ckpt_up_proj_name may be "".  Reuse gate name for w3 so
+        # BitsAndBytes MoE quant fusion sees a real checkpoint key (not
+        # "experts.N..weight").  load_weights still matches w1 first for a given
+        # tensor name, so w3 does not double-load the same shard.
+        w3_ckpt_name = ckpt_up_proj_name or ckpt_gate_proj_name
+        shard_specs = [
+            ("w1", ckpt_gate_proj_name),
+            ("w2", ckpt_down_proj_name),
+            ("w3", w3_ckpt_name),
+        ]
+
         return [
             # (param_name, weight_name, expert_id, shard_id)
             (
                 f"experts.{base_layer}w13_"
-                if weight_name in [ckpt_gate_proj_name, ckpt_up_proj_name]
+                if weight_name in (ckpt_gate_proj_name, ckpt_up_proj_name)
                 else f"experts.{base_layer}w2_",
                 f"experts.{physical_to_logical_map[expert_id]}.{weight_name}.{base_layer}",
                 expert_id,
                 shard_id,
             )
             for expert_id in range(num_physical_experts)
-            for shard_id, weight_name in [
-                ("w1", ckpt_gate_proj_name),
-                ("w2", ckpt_down_proj_name),
-                ("w3", ckpt_up_proj_name),
-            ]
+            for shard_id, weight_name in shard_specs
         ]
 
     @property

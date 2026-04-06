@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
+import copy
 import fnmatch
 import glob
 import itertools
@@ -635,22 +636,39 @@ class BitsAndBytesModelLoader(BaseModelLoader):
             w1_states_lst = []
             w2_states_lst = []
             w3_states_lst = []
+            prev_expert_id: int | None = None
+            w1_qs_raw_backup: Any = None
             for exp in expert_mapping:
                 shard_id = exp[-1]
+                expert_id = exp[2]
                 if shard_id not in ("w1", "w2", "w3"):
                     raise ValueError(
                         f"shard_id must be ['w1','w2','w3'] but got {shard_id}."
                     )
                 layer_prefix = name.split("experts")[0]
                 weight_qual_name = layer_prefix + exp[1] + "weight"
-                quant_state = self._dequantize_dq(quant_states_dict[weight_qual_name])
+                if expert_id != prev_expert_id:
+                    prev_expert_id = expert_id
+                    w1_qs_raw_backup = None
+
+                if weight_qual_name not in quant_states_dict:
+                    if shard_id == "w3" and w1_qs_raw_backup is not None:
+                        qs = copy.deepcopy(w1_qs_raw_backup)
+                    else:
+                        raise KeyError(weight_qual_name)
+                else:
+                    qs = quant_states_dict[weight_qual_name]
+                    if shard_id == "w1":
+                        w1_qs_raw_backup = copy.deepcopy(qs)
+                    del quant_states_dict[weight_qual_name]
+
+                quant_state = self._dequantize_dq(qs)
                 if shard_id == "w1":
                     w1_states_lst.append(quant_state)
                 elif shard_id == "w2":
                     w2_states_lst.append(quant_state)
                 else:
                     w3_states_lst.append(quant_state)
-                del quant_states_dict[weight_qual_name]
             assert len(w1_states_lst) == len(w2_states_lst) == len(w3_states_lst)
             w13_absmax_lst = []
             w2_absmax_lst = []
